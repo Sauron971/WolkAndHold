@@ -6,12 +6,15 @@
     android:layout_height="match_parent"
     android:id="@+id/main">
 
-    <!-- Список маршрутов -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_routes"
+
+    <com.google.android.material.progressindicator.CircularProgressIndicator
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="8dp" />
+        android:layout_height="match_parent" />
+
+    <FrameLayout
+        android:id="@+id/nav_host_fragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
     <!-- Меню внизу -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -21,6 +24,7 @@
         android:layout_gravity="bottom"
         app:menu="@menu/bottom_menu"
         app:labelVisibilityMode="labeled"
+        app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
         android:background="?android:attr/windowBackground" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

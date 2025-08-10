@@ -19,8 +19,7 @@
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="80dp"
         android:contentDescription="Начать запись"
-        android:src="@drawable/ic_play"
-        app:backgroundTint="@color/purple_500" />
+        android:src="@drawable/ic_play"/>
 
     <!-- Меню внизу -->
     <com.google.android.material.bottomnavigation.BottomNavigationView

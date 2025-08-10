@@ -1,16 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/swipe_layout"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
-    android:elevation="4dp">
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="8dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="#BDBDBD">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <ImageButton
+            android:id="@+id/delete_button"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:background="@drawable/bg_delete_button"
+            android:src="@drawable/ic_delete"
+            android:contentDescription="Удалить"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="16dp"
+            app:tint="@android:color/white" />
+    </FrameLayout>
 
     <LinearLayout
-        android:orientation="vertical"
-        android:padding="12dp"
+        android:id="@+id/route_content"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_item_radius"
+        android:orientation="vertical"
+        android:padding="16dp">
 
         <TextView
             android:id="@+id/route_title"
@@ -19,14 +43,26 @@
             android:textSize="18sp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
-
-        <TextView
-            android:id="@+id/route_date"
-            android:text="Дата"
-            android:textSize="14sp"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#777777"/>
+            android:layout_height="wrap_content">
+            <TextView
+                android:id="@+id/route_date"
+                android:text="Дата"
+                android:textSize="14sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#777777"
+                android:layout_marginEnd="14sp"/>
+            <TextView
+                android:id="@+id/route_distance"
+                android:text="Длинна"
+                android:textSize="14sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#777777"/>
+        </LinearLayout>
+
     </LinearLayout>
 
 </androidx.cardview.widget.CardView>

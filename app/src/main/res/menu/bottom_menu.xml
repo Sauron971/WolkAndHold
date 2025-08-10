@@ -2,12 +2,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:id="@+id/nav_map"
+        android:id="@+id/mapFragment"
         android:icon="@drawable/ic_map"
         android:title="Карта" />
 
     <item
-        android:id="@+id/nav_routes"
+        android:id="@+id/routesFragment"
         android:icon="@drawable/ic_route"
         android:title="Маршруты" />
 

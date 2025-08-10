@@ -21,5 +21,14 @@ public class RoutePoint {
 
     public double latitude;
     public double longitude;
-    public long timestamp;
+
+    @Override
+    public String toString() {
+        return "RoutePoint{" +
+                "id=" + id +
+                ", routeId=" + routeId +
+                ", latitude=" + latitude +
+                ", longitude=" + longitude +
+                '}';
+    }
 }

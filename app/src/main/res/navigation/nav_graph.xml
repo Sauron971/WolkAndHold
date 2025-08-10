@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph.xml"
+    app:startDestination="@id/mapFragment">
+    <fragment
+        android:id="@+id/mapFragment"
+        android:name="com.kyas.wolkandhold.mapfragment.MapFragment"
+        android:label="Map"/>
+    <fragment
+        android:id="@+id/routesFragment"
+        android:name="com.kyas.wolkandhold.routesfragment.RoutesFragment"
+        android:label="Routes"/>
+
+
+</navigation>

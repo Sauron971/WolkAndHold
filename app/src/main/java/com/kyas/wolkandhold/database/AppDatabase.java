@@ -11,7 +11,7 @@ import com.kyas.wolkandhold.database.dao.RoutePointDao;
 import com.kyas.wolkandhold.database.entities.Route;
 import com.kyas.wolkandhold.database.entities.RoutePoint;
 
-@Database(entities = {Route.class, RoutePoint.class}, version = 1)
+@Database(entities = {Route.class, RoutePoint.class}, version = 2)
 public abstract class AppDatabase extends RoomDatabase {
     private static volatile AppDatabase INSTANCE;
     public abstract RouteDao getRouteDao();
@@ -21,7 +21,7 @@ public abstract class AppDatabase extends RoomDatabase {
             synchronized (AppDatabase.class) {
                 if (INSTANCE == null) {
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
-                                    AppDatabase.class, "notes_db")
+                                    AppDatabase.class, "routes_db")
                             .fallbackToDestructiveMigration()
                             .build();
                 }

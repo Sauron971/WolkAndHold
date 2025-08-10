@@ -12,7 +12,12 @@ import java.util.List;
 public interface RoutePointDao {
     @Insert
     void insert(RoutePoint point);
-
+    @Insert
+    void insertAll(List<RoutePoint> pointList);
     @Query("SELECT * FROM RoutePoint WHERE routeId = :routeId")
     List<RoutePoint> getPointsForRoute(long routeId);
+
+    @Query("SELECT * FROM RoutePoint ")
+    List<RoutePoint> getAllPointsRoute();
+
 }
