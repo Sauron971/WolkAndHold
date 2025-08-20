@@ -1,13 +1,10 @@
 package com.kyas.wolkandhold;
 
 import android.Manifest;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ApplicationInfo;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.MenuItem;
 
 import androidx.activity.EdgeToEdge;
@@ -24,8 +21,6 @@ import com.google.android.material.navigation.NavigationBarView;
 import com.kyas.wolkandhold.mapfragment.MapFragment;
 import com.kyas.wolkandhold.routesfragment.RoutesFragment;
 import com.yandex.mapkit.MapKitFactory;
-
-import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
     private FragmentManager fm;
@@ -86,7 +81,12 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         });
+        SharedPreferences sett = getSharedPreferences("token", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sett.edit();
+        editor.putString("jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0b3ZpY2g1IiwiaWF0IjoxNzU1Njg2MDM4LCJleHAiOjE3NTU3NzI0Mzh9.1j2n_sTPR0rXdxr7RjwyxmoVEplywXymsQ-u1hpQC4s");
+        editor.apply();
     }
+
 
     @Override
     protected void onStart() {

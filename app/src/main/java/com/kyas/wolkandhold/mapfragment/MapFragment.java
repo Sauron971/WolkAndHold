@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.PointF;
@@ -20,6 +21,7 @@ import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -43,10 +45,15 @@ import com.google.android.material.floatingactionbutton.ExtendedFloatingActionBu
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.kyas.wolkandhold.BuildConfig;
 import com.kyas.wolkandhold.DialogFactory;
 import com.kyas.wolkandhold.R;
-import com.kyas.wolkandhold.RouteRepository;
+import com.kyas.wolkandhold.api.AuthInterceptor;
+import com.kyas.wolkandhold.api.requests.PolygonRequest;
+import com.kyas.wolkandhold.database.RouteRepository;
 import com.kyas.wolkandhold.RouteViewModel;
+import com.kyas.wolkandhold.api.ApiService;
+import com.kyas.wolkandhold.api.response.PolygonResponse;
 import com.kyas.wolkandhold.database.AppDatabase;
 import com.kyas.wolkandhold.database.dao.PolygonDao;
 import com.kyas.wolkandhold.database.dao.RouteDao;
@@ -72,13 +79,27 @@ import com.yandex.mapkit.user_location.UserLocationObjectListener;
 import com.yandex.mapkit.user_location.UserLocationView;
 import com.yandex.runtime.image.ImageProvider;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import okhttp3.OkHttpClient;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+import ua.naiksoftware.stomp.Stomp;
+import ua.naiksoftware.stomp.StompClient;
 
 public class MapFragment extends Fragment implements UserLocationObjectListener {
 
@@ -88,12 +109,14 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     private Activity activity;
     FusedLocationProviderClient mFusedLocationClient;
     private ExtendedFloatingActionButton btnStartRecording;
+    private Retrofit retrofit;
+    private ApiService apiService;
     private FloatingActionButton btnCenterLocation;
     private boolean isRecording = false;
     private ExecutorService executor;
     private RouteViewModel routeViewModel;
     private PolylineMapObject recordingPolyline;
-    private PlacemarkMapObject markSartRoute;
+    private PlacemarkMapObject markStartRoute;
     private Map<Long, PolygonData> polygonsMapObjects;
     private final BroadcastReceiver locationReceiver = new BroadcastReceiver() {
         @Override
@@ -125,6 +148,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
 
         routeViewModel = new ViewModelProvider(this).get(RouteViewModel.class);
         routeViewModel.getPoints().observe(getViewLifecycleOwner(), updatedPoints -> {
+            // Обновление линии записи для отображения на карте
             if (recordingPolyline != null) {
                 recordingPolyline.setGeometry(new Polyline(updatedPoints));
                 if (updatedPoints.isEmpty()) {
@@ -136,13 +160,30 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                         null
                 );
             } else {
+                // Отображается по щелчку на маршрут в рекуклере на routesFragment
                 mapView.getMapWindow()
                         .getMap()
                         .getMapObjects()
-                        .addPolygon(new Polygon(new LinearRing(updatedPoints), new ArrayList<>()));
+                        .addPolyline(new Polyline(updatedPoints));
             }
         });
-        loadPolygons();
+        routeViewModel.getLocation().observe(getViewLifecycleOwner(), new Observer<Point>() {
+            // Однократный запрос на апи при получении координат пользователя
+            @Override
+            public void onChanged(Point loc) {
+                if (loc != null && !loc.equals(new Point(0, 0))) {
+                    routeViewModel.loadPolygonsFromApi(apiService);
+                    routeViewModel.getLocation().removeObserver(this);
+
+                    try {
+                        connectWebSocket();
+                    } catch (JSONException e) {
+                        Log.e("WS", "Error connect ws ", e);
+                    }
+                }
+            }
+        });
+        routeViewModel.getPolygons().observe(getViewLifecycleOwner(), this::renderPolygons);
 
 
         btnStartRecording.setOnClickListener(v -> {
@@ -205,6 +246,17 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(activity);
         getLastLocation();
         executor = Executors.newSingleThreadExecutor();
+        SharedPreferences set = activity.getSharedPreferences("token", Context.MODE_PRIVATE);
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(new AuthInterceptor(set.getString("jwt", "token")))
+                .build();
+
+        retrofit = new Retrofit.Builder()
+                .baseUrl(BuildConfig.API_URL)
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        apiService = retrofit.create(ApiService.class);
 
     }
 
@@ -227,18 +279,61 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         Log.d("Fragment", "Resume map fragment");
     }
 
+    @SuppressLint("CheckResult")
+    private void connectWebSocket() throws JSONException {
+        StompClient stompClient = Stomp.over(
+                Stomp.ConnectionProvider.OKHTTP,
+                BuildConfig.WS_URL
+        );
+
+        stompClient.lifecycle()
+                .subscribe(lifecycleEvent -> {
+                    switch (lifecycleEvent.getType()) {
+                        case OPENED:
+                            Log.d("WS", "Stomp connection opened");
+
+                            // тут можно подписываться
+                            stompClient.topic("/user/queue/polygons")
+                                    .subscribe(msg -> {
+                                        Log.d("WS", "Got: " + msg.getPayload());
+                                    }, err -> {
+                                        Log.e("WS", "Topic error", err);
+                                    });
+
+                            // и отправлять
+                            String body = String.format(Locale.getDefault(), "{\"lat\":%f,\"lon\":%f,\"radius\":1000}",
+                                    routeViewModel.getLocation().getValue().getLatitude(),
+                                    routeViewModel.getLocation().getValue().getLongitude());
+                            stompClient.send("/app/subscribe", body)
+                                    .subscribe(() -> Log.d("WS", "Send OK"),
+                                            err -> Log.e("WS", "Send error", err));
+                            break;
+
+                        case ERROR:
+                            Log.e("WS", "Error", lifecycleEvent.getException());
+                            break;
+
+                        case CLOSED:
+                            Log.d("WS", "Connection closed");
+                            break;
+                    }
+                });
+
+        stompClient.connect();
+    }
+
 
     private void startRecording(Intent service) {
         // Начать запись
         btnStartRecording.setText(R.string.stop_record);
         btnStartRecording.setIconResource(R.drawable.ic_stop);
-        markSartRoute = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
+        markStartRoute = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
         getLastLocation();
         //когда координаты пользователя найдены запускаем сервис
         routeViewModel.getLocation().observe(getViewLifecycleOwner(), (location) -> {
-            if (markSartRoute.isValid()) {
-                markSartRoute.setGeometry(location);
-                markSartRoute.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
+            if (markStartRoute.isValid()) {
+                markStartRoute.setGeometry(location);
+                markStartRoute.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
                 if (checkPermissions()) {
                     recordingPolyline = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
 
@@ -256,7 +351,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         btnStartRecording.setText(R.string.start_record);
         LocalBroadcastManager.getInstance(activity).unregisterReceiver(locationReceiver);
         activity.stopService(service);
-        mapView.getMapWindow().getMap().getMapObjects().remove(markSartRoute);
+        mapView.getMapWindow().getMap().getMapObjects().remove(markStartRoute);
         // Сохранить маршрут
         executor.execute(() -> {
             List<Point> points = BufferedRoute.getAll();
@@ -269,8 +364,8 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             routeRep.addPointsToRoute(points);
             // Обновляем или создаем новую территорию для этого юзера
             List<com.kyas.wolkandhold.database.entities.Polygon> polygons = pd.getPolygonsByUser(-1);
+            com.kyas.wolkandhold.database.entities.Polygon poly = new com.kyas.wolkandhold.database.entities.Polygon();
             if (polygons.isEmpty()) {
-                com.kyas.wolkandhold.database.entities.Polygon poly = new com.kyas.wolkandhold.database.entities.Polygon();
                 poly.userId = -1;
                 poly.lastUpdated = System.currentTimeMillis();
                 Gson gson = new Gson();
@@ -280,7 +375,6 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             } else {
                 double area = polygonAreaOnEarth(points);
                 if (area > polygons.get(0).area) {
-                    com.kyas.wolkandhold.database.entities.Polygon poly = new com.kyas.wolkandhold.database.entities.Polygon();
                     poly.userId = -1;
                     poly.lastUpdated = System.currentTimeMillis();
                     Gson gson = new Gson();
@@ -289,6 +383,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                     pd.updatePolygon(poly);
                 }
             }
+            sendUpsertPolygonRequest(poly);
             activity.runOnUiThread(() -> {
                 BufferedRoute.clear();
                 mapView.getMapWindow().getMap().getMapObjects().remove(recordingPolyline);
@@ -304,7 +399,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         btnStartRecording.setText(R.string.start_record);
         LocalBroadcastManager.getInstance(activity).unregisterReceiver(locationReceiver);
         activity.stopService(service);
-        mapView.getMapWindow().getMap().getMapObjects().remove(markSartRoute);
+        mapView.getMapWindow().getMap().getMapObjects().remove(markStartRoute);
         BufferedRoute.clear();
         mapView.getMapWindow().getMap().getMapObjects().remove(recordingPolyline);
         recordingPolyline = null;
@@ -319,39 +414,73 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         return inflater.inflate(R.layout.fragment_map, container, false);
     }
 
-    private void loadPolygons() {
-        routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (polygons) -> {
-            if (polygons != null) {
-                Gson gson = new Gson();
-                Type pointListType = new TypeToken<List<Point>>(){}.getType();
+    private void sendUpsertPolygonRequest(com.kyas.wolkandhold.database.entities.Polygon poly) {
 
-                for (com.kyas.wolkandhold.database.entities.Polygon polyEntity : polygons) {
-
-                    List<Point> points = gson.fromJson(polyEntity.pointsJson, pointListType);
-                    Polygon polygon = new Polygon(new LinearRing(points), new ArrayList<>());
-                    if (polygonsMapObjects.containsKey(polyEntity.userId)) {
-                        polygonsMapObjects.get(polyEntity.userId).obj.setGeometry(polygon);
-                        continue;
-
-                    }
-                    Log.d("TAG", "loadPolygons: " + polyEntity.userId);
-
-                    PolygonMapObject polygonMapObject = mapView.getMapWindow().getMap().getMapObjects().addPolygon(polygon);
-                    MapObjectTapListener mapObjectTapListener = new MapObjectTapListener() {
-                        @Override
-                        public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
-                            Toast.makeText(activity, "Это ваша территория!", Toast.LENGTH_SHORT).show();
-                            return true;
-                        }
-                    };
-                    if (polyEntity.userId == -1) {
-                        polygonMapObject.addTapListener(mapObjectTapListener);
-                        polygonMapObject.setFillColor(Color.argb(100, 255, 0, 0));
-                    }
-                    polygonsMapObjects.put(polyEntity.userId, new PolygonData(polygonMapObject, mapObjectTapListener));
+        apiService.upsertPolygon(new PolygonRequest(
+                poly.userId, poly.pointsJson, poly.area, poly.lastUpdated)).enqueue(new Callback<PolygonResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<PolygonResponse> call, @NonNull Response<PolygonResponse> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(activity, "Полигон сохранен успешно!", Toast.LENGTH_SHORT).show();
                 }
             }
+
+            @Override
+            public void onFailure(@NonNull Call<PolygonResponse> call, @NonNull Throwable t) {
+                Toast.makeText(activity, "Ошибка при сохранении полигона в облако!", Toast.LENGTH_SHORT).show();
+            }
         });
+    }
+    private void renderPolygons(List<com.kyas.wolkandhold.database.entities.Polygon> polygons) {
+        if (polygons != null) {
+            List<Integer> availableColors  = getRandomListColorsWithAlpha(100, polygons.size());
+            Random random = new Random();
+            Gson gson = new Gson();
+            Type pointListType = new TypeToken<List<Point>>(){}.getType();
+
+            for (com.kyas.wolkandhold.database.entities.Polygon polyEntity : polygons) {
+                List<Point> points = gson.fromJson(polyEntity.pointsJson, pointListType);
+                Polygon polygon = new Polygon(new LinearRing(points), new ArrayList<>());
+                if (polygonsMapObjects.containsKey(polyEntity.userId)) {
+                    polygonsMapObjects.get(polyEntity.userId).obj.setGeometry(polygon);
+                    continue;
+
+                }
+                Log.d("TAG", "loadPolygons: " + polyEntity.userId);
+
+                PolygonMapObject polygonMapObject = mapView.getMapWindow().getMap().getMapObjects().addPolygon(polygon);
+                String tapString;
+
+                if (polyEntity.userId == -1) {
+                    tapString = "Это ваша территория";
+                    polygonMapObject.setFillColor(Color.argb(200, 131, 125, 162));
+                } else {
+                    tapString = "Это территория игрока: " + polyEntity.ownerName;
+                    polygonMapObject.setFillColor(availableColors.get(random.nextInt(availableColors.size()-1)));
+                }
+                MapObjectTapListener mapObjectTapListener = new MapObjectTapListener() {
+                    @Override
+                    public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
+                        Toast.makeText(activity, tapString, Toast.LENGTH_SHORT).show();
+                        return true;
+                    }
+                };
+                polygonMapObject.addTapListener(mapObjectTapListener);
+                polygonsMapObjects.put(polyEntity.userId, new PolygonData(polygonMapObject, mapObjectTapListener));
+            }
+        }
+    }
+    private List<Integer> getRandomListColorsWithAlpha(int alpha, int count) {
+        List<Integer> result = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+
+            Random rnd = new Random();
+            int r = rnd.nextInt(256);
+            int g = rnd.nextInt(256);
+            int b = rnd.nextInt(256);
+            result.add(Color.argb(alpha, r, g, b));
+        }
+        return result;
     }
 
 

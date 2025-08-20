@@ -5,8 +5,10 @@ import androidx.room.PrimaryKey;
 
 @Entity(tableName = "polygons")
 public class Polygon {
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
+    public long id;
     public long userId;
+    public String ownerName;
 
     public String pointsJson;
     public double area;

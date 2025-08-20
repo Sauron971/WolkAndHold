@@ -54,7 +54,8 @@ public class LocationRecordService extends LifecycleService {
             public void onLocationResult(@NonNull LocationResult result) {
                 Location loc = result.getLastLocation();
                 if (loc != null) {
-                    if (lastLocation == null || loc.distanceTo(lastLocation) > 2) {
+                    if (lastLocation == null || loc.distanceTo(lastLocation) > 2 && loc.getAccuracy() < 25) {
+
                         lastLocation = loc;
                         BufferedRoute.add(new com.yandex.mapkit.geometry.Point(
                                 loc.getLatitude(),

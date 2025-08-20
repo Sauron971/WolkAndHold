@@ -24,12 +24,12 @@ public interface ApiService {
     @GET
     Call<String> me();
 
-    @GET("{lat}/{lon}/{radius}")
+    @GET("/api/polygons/{lat}/{lon}/{radius}")
     Call<List<PolygonResponse>> getPolygonsInRadius(@Path("lat") double latitude,
                                                     @Path("lon") double longitude,
                                                     @Path("radius") double radius);
 
-    @POST
+    @POST("/api/polygons")
     Call<PolygonResponse> upsertPolygon(@Body PolygonRequest polygonRequest);
 
 }

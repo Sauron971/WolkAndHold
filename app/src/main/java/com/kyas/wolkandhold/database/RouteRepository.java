@@ -1,4 +1,4 @@
-package com.kyas.wolkandhold;
+package com.kyas.wolkandhold.database;
 
 import com.kyas.wolkandhold.database.dao.RouteDao;
 import com.kyas.wolkandhold.database.dao.RoutePointDao;

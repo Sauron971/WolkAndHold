@@ -13,7 +13,7 @@ import com.kyas.wolkandhold.database.entities.Polygon;
 import com.kyas.wolkandhold.database.entities.Route;
 import com.kyas.wolkandhold.database.entities.RoutePoint;
 
-@Database(entities = {Route.class, RoutePoint.class, Polygon.class}, version = 3)
+@Database(entities = {Route.class, RoutePoint.class, Polygon.class}, version = 7)
 public abstract class AppDatabase extends RoomDatabase {
     private static volatile AppDatabase INSTANCE;
     public abstract RouteDao getRouteDao();
