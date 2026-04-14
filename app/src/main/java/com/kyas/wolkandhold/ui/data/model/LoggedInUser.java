@@ -5,12 +5,12 @@ package com.kyas.wolkandhold.ui.data.model;
  */
 public class LoggedInUser {
 
-    private String userId;
+    private Long userId;
     private String displayName;
 
     private String jwtToken;
 
-    public LoggedInUser(String userId, String displayName, String jwtToken) {
+    public LoggedInUser(Long userId, String displayName, String jwtToken) {
         this.userId = userId;
         this.displayName = displayName;
         this.jwtToken = jwtToken;
@@ -20,11 +20,20 @@ public class LoggedInUser {
         return jwtToken;
     }
 
-    public String getUserId() {
+    public Long getUserId() {
         return userId;
     }
 
     public String getDisplayName() {
         return displayName;
+    }
+
+    @Override
+    public String toString() {
+        return "LoggedInUser{" +
+                "userId=" + userId +
+                ", displayName='" + displayName + '\'' +
+                ", jwtToken='" + jwtToken + '\'' +
+                '}';
     }
 }

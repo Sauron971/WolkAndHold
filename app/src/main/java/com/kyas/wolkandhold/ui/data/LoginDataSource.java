@@ -47,9 +47,10 @@ public class LoginDataSource {
             if (resp.isSuccessful() && resp.body() != null) {
                 LoggedInUser user =
                         new LoggedInUser(
-                                java.util.UUID.randomUUID().toString(),
-                                username,
+                                resp.body().getUserId(),
+                                resp.body().getUsername(),
                                 resp.body().getToken());
+                Log.d("AUTH", "We get user while login: " + user);
                 return new Result.Success<>(user);
             } else {
                 return new Result.Error(new Exception("Error login"));
@@ -77,16 +78,17 @@ public class LoginDataSource {
             Response<ValidateTokenResponse> resp = apiService.me().execute();
             if (resp.isSuccessful() && resp.body() != null) {
                 LoggedInUser user = new LoggedInUser(
-                        java.util.UUID.randomUUID().toString(),
+                        resp.body().getUserId(),
                         resp.body().getUsername(),
                         sharedPreferences.getString("token", ""));
+                Log.d("AUTH", "We get user while validate: " + user);
                 return new Result.Success<>(user);
             } else {
-                return new Result.Error(new Exception("Error login"));
+                return new Result.Error(new Exception("Error validate"));
             }
         } catch (Exception e) {
-            Log.e("ERROR LOGIN", "Crashed login here: ", e);
-            return new Result.Error(new IOException("Error logging in", e));
+            Log.e("ERROR LOGIN", "Crashed validate here: ", e);
+            return new Result.Error(new IOException("Error validating", e));
         }
     }
 

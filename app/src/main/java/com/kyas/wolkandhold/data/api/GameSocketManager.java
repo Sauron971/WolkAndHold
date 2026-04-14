@@ -7,6 +7,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.kyas.wolkandhold.BuildConfig;
 import com.kyas.wolkandhold.data.Constants;
 import com.kyas.wolkandhold.data.api.requests.LocationRequest;
@@ -108,9 +109,14 @@ public class GameSocketManager {
     private void subscribeToPolygons() {
         Disposable topic = stompClient.topic("/user/queue/polygons")
                 .subscribe(msg -> {
-                    PolygonResponse response = gson.fromJson(msg.getPayload(), PolygonResponse.class);
+                    List<PolygonResponse> response = gson.fromJson(msg.getPayload(),
+                            new TypeToken<List<PolygonResponse>>(){}.getType());
                     if (listenerPolygon != null) {
-                        listenerPolygon.onNewPolygons(response.toEntities());
+                        List<Polygon> polygons = new ArrayList<>();
+                        for (PolygonResponse resp : response) {
+                            polygons.addAll(resp.toEntities());
+                        }
+                        listenerPolygon.onNewPolygons(polygons);
                     }
                 }, err -> Log.e("WS", "Topic error", err));
 

@@ -20,12 +20,14 @@ public class LoginRepository {
 
     private SharedPreferences sharedPreferences;
     private LoggedInUser user = null;
+    private UserRepository userRepo;
 
     // private constructor : singleton access
     private LoginRepository(Context context, LoginDataSource dataSource) {
         this.dataSource = dataSource;
         this.sharedPreferences = context.getApplicationContext()
                 .getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+        this.userRepo = UserRepository.getInstance();
     }
 
     public static LoginRepository getInstance(Context context, LoginDataSource dataSource) {
@@ -41,8 +43,8 @@ public class LoginRepository {
 
         if (result instanceof Result.Success) {
             setLoggedInUser(((Result.Success<LoggedInUser>) result).getData());
+            userRepo.saveSession(user);
         }
-
         return result;
     }
 
@@ -65,6 +67,7 @@ public class LoginRepository {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putString("token", user.getJwtToken());
             editor.apply();
+            userRepo.saveSession(user);
         }
 
         return result;

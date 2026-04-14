@@ -2,6 +2,7 @@ package com.kyas.wolkandhold.data.database.dao;
 
 import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
+import androidx.room.Delete;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
@@ -43,6 +44,11 @@ public interface PolygonDao {
     @Query("Select * From polygons")
     LiveData<List<Polygon>> getAllPolygonsLive();
 
+    @Query("Delete From polygons Where id = :id")
+    void deletePolygonById(long id);
+
+    @Query("Delete From polygons ")
+    void deleteAll();
 
     @Transaction
     default void upsert(Polygon newPolygon) {

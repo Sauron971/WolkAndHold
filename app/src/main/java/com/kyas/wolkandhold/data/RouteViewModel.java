@@ -15,6 +15,10 @@ import com.kyas.wolkandhold.data.api.response.TailResponse;
 import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
+import com.kyas.wolkandhold.ui.data.LoginDataSource;
+import com.kyas.wolkandhold.ui.data.LoginRepository;
+import com.kyas.wolkandhold.ui.data.UserRepository;
+import com.kyas.wolkandhold.ui.data.model.LoggedInUser;
 import com.kyas.wolkandhold.ui.mapfragment.PlayerMarkUiModel;
 import com.kyas.wolkandhold.ui.mapfragment.PolygonUiModel;
 import com.yandex.mapkit.geometry.Point;
@@ -62,7 +66,7 @@ public class RouteViewModel extends AndroidViewModel {
             for (Polygon e : entities) {
                 PolygonUiModel ui = new PolygonUiModel();
                 ui.id = String.valueOf(e.id);
-                ui.ownerLabel = e.ownerName != null ? "Владелец: " + e.ownerName : "Аноним";
+                ui.ownerLabel = e.ownerName != null ? e.ownerName : "Аноним";
                 ui.points = parsePoints(e.pointsJson);
                 ui.area = e.area;
                 result.add(ui);
@@ -128,5 +132,14 @@ public class RouteViewModel extends AndroidViewModel {
     public void uploadPolygon(Polygon polygon) {
         repo.sendPolygonRequest(polygon);
     }
+
+    public LoggedInUser getSession() {
+        return repo.getSession();
+    }
+    public void clearSession() {
+        repo.clearSession();
+
+    }
+
 
 }

@@ -32,6 +32,6 @@ public class Constants {
     /**
      * Прозрачность полилинии для отрисовки других игроков
      */
-    public static final int ALPHA_COLOR_OF_POLYLINE = 85;
+    public static final int ALPHA_COLOR_OF_POLYLINE = 128;
 }
 

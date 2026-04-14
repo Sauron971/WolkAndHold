@@ -56,6 +56,7 @@ public class LocationRecordService extends LifecycleService {
                 case ACTION_START_IDLE:
                     startLocationUpdates();
                     isCaptureMode = false;
+                    repo.clearPoints();
                     break;
 
                 case ACTION_START_CAPTURE:

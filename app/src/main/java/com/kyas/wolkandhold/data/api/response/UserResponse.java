@@ -1,6 +1,10 @@
 package com.kyas.wolkandhold.data.api.response;
 
+import com.google.gson.annotations.SerializedName;
+
 public class UserResponse {
+
+    @SerializedName(value = "userId", alternate = {"id", "user_id"})
     private long id;
 
     private String username;

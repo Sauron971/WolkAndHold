@@ -1,5 +1,7 @@
 package com.kyas.wolkandhold.data.api.response;
 
+import android.util.Log;
+
 import com.google.gson.Gson;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.yandex.mapkit.geometry.Point;
@@ -53,6 +55,7 @@ public class PolygonResponse {
                 points.add(new Point(lat, lon)); // yandex Point(lat, lon)
             } catch (NumberFormatException ignoreBadPair) {
                 // лог + пропуск кривой пары
+                Log.e("PolygonResponse", "Response not parse, coordinates is wrong");
             }
         }
         if (points.isEmpty()) return Collections.emptyList();
@@ -60,7 +63,7 @@ public class PolygonResponse {
         if (points.size() > 1 && isSame(points.get(0), points.get(points.size() - 1))) {
             points.remove(points.size() - 1);
         }
-        // 6) Сериализуем points в JSON безопасно через Gson (а не String.format вручную)
+        // 6) Сериализуем points в JSON безопасно через Gson
         String pointsJson = new Gson().toJson(points);
         Polygon poly = new Polygon();
         poly.id = this.id;

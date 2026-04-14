@@ -18,12 +18,14 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.ColorUtils;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
@@ -33,6 +35,8 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kyas.wolkandhold.R;
 import com.kyas.wolkandhold.data.Constants;
 import com.kyas.wolkandhold.data.RouteViewModel;
+import com.kyas.wolkandhold.ui.MainActivity;
+import com.kyas.wolkandhold.ui.ui.login.LoginActivity;
 import com.kyas.wolkandhold.utils.DialogFactory;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
@@ -58,11 +62,13 @@ import com.yandex.runtime.image.ImageProvider;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public class MapFragment extends Fragment implements UserLocationObjectListener {
 
@@ -71,6 +77,9 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     private Activity activity;
     private ExtendedFloatingActionButton btnStartRecording;
     private FloatingActionButton btnCenterLocation;
+    private FloatingActionButton btnAvatar;
+    private View dimOverlay;
+    private TextView infoOwner, infoArea;
     private MapView mapView;
     private boolean isRecording = false;
     private ExecutorService executor;
@@ -95,6 +104,11 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         mapView = view.findViewById(R.id.mapview);
         btnStartRecording = view.findViewById(R.id.fab_start_record);
         btnCenterLocation = view.findViewById(R.id.fab_center_location);
+        btnAvatar = view.findViewById(R.id.fap_avatar);
+
+        dimOverlay = view.findViewById(R.id.dim_overlay);
+        infoOwner = view.findViewById(R.id.info_owner);
+        infoArea = view.findViewById(R.id.info_area);
         polygonsMapObjects = new HashMap<>();
         playersMarkMapObjects = new HashMap<>();
         playersPolylineMapObjects = new HashMap<>();
@@ -103,6 +117,9 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         ull.setObjectListener(this);
         ull.setVisible(true);
         ull.setHeadingModeActive(true);
+
+        view.findViewById(R.id.btn_close_info).setOnClickListener(v -> hidePolygonInfo());
+        dimOverlay.setOnClickListener(v -> hidePolygonInfo());
 
         routeViewModel = new ViewModelProvider(requireActivity()).get(RouteViewModel.class);
         tryGetLocation();
@@ -150,31 +167,26 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             }
         });
         routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
-            // Удаляем старые полигоны перед добавлением новых
-            polygonsMapObjects.forEach((id, polygonData) -> {
-                if (polygonData.obj.isValid()) {
-                    mapView.getMapWindow().getMap().getMapObjects().remove(polygonData.obj);
-                }
-            });
-            polygonsMapObjects.clear();
-            // Добавляем все полигоны заново
-            list.forEach(p -> {
-                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel, p.id);
-            });
+            List<Long> idsToDelete = list
+                    .stream()
+                    .filter(model -> polygonsMapObjects.containsKey(Long.valueOf(model.id)))
+                    .map(model -> Long.valueOf(model.id))
+                    .collect(Collectors.toList());
+            idsToDelete.forEach(polygonsMapObjects::remove);
+            list.forEach(this::renderPolygon);
         });
 
         routeViewModel.getPlayersMarks().observe(getViewLifecycleOwner(), (list) -> {
             //Обновление отображения точки и маршрута других игроков
             list.forEach((m) -> {
                 renderingMarkOfPlayer(m.id, m.playerName, m.point);
-                Log.d("RenderPlayers", "Is captured: " + m.isCapture);
-                if(m.isCapture) {
+                if(m.isCapture && !Objects.equals(routeViewModel.getSession().getUserId(), m.id)) {
                     renderingPolylineOfPlayer(m.id, m.point);
                 }
             });
         });
         routeViewModel.getCroppedTail().observe(getViewLifecycleOwner(), tail -> {
-            if (tail != null && !tail.getPath().isEmpty() && tail.getUserId() != null) {
+            if (tail != null && !tail.getPath().isEmpty() && tail.getUserId() != null && !Objects.equals(routeViewModel.getSession().getUserId(), tail.getUserId())) {
                 renderingPolylineOfPlayer(tail.getUserId(), tail.getPath());
                 Log.d("CropTail", "Crop tail of player: " + tail.getUsername());
             }
@@ -214,7 +226,11 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             });
 
         });
-
+        btnAvatar.setOnClickListener(v -> {
+            routeViewModel.clearSession();
+            Intent mainAct = new Intent(this.getContext(), LoginActivity.class);
+            startActivity(mainAct);
+        });
         routeViewModel.connectWebSocket(getActivity().getApplicationContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE).getString("token", ""));
 
     }
@@ -317,23 +333,33 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         getContext().startService(intent);
         btnStartRecording.setIconResource(R.drawable.ic_play);
         btnStartRecording.setText(R.string.start_record);
+        routeViewModel.clearPoints();
+        mapView.getMapWindow().getMap().getMapObjects().remove(recordingPolyline);
         recordingPolyline = null;
         isRecording = false;
     }
 
-    private void renderPolygon(Polygon polygon, String tapString, String id) {
-        PolygonMapObject polygonMapObject = mapView.getMapWindow().getMap().getMapObjects().addPolygon(polygon);
-        if (!polygonsMapObjects.containsKey(Long.valueOf(id)))
-            polygonMapObject.setFillColor(getRandomColor(75));
-        MapObjectTapListener mapObjectTapListener = new MapObjectTapListener() {
-            @Override
-            public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
-                Toast.makeText(activity, tapString, Toast.LENGTH_SHORT).show();
-                return true;
+    private void renderPolygon(PolygonUiModel uiModel) {
+        if (!polygonsMapObjects.containsKey(Long.valueOf(uiModel.id))) {
+            PolygonMapObject polygonMapObject = mapView.getMapWindow().getMap().getMapObjects().addPolygon(new Polygon(new LinearRing(uiModel.points), new ArrayList<>()));
+            int color = getRandomColor(75);
+            polygonMapObject.setFillColor(color);
+            polygonMapObject.setStrokeColor(ColorUtils.setAlphaComponent(color, 255));
+            MapObjectTapListener mapObjectTapListener = new MapObjectTapListener() {
+                @Override
+                public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
+                    showPolygonInfo(uiModel);
+                    return true;
+                }
+            };
+            polygonMapObject.addTapListener(mapObjectTapListener);
+            polygonsMapObjects.put(Long.valueOf(uiModel.id), new PolygonData(polygonMapObject, mapObjectTapListener));
+        } else {
+            PolygonData polyData = polygonsMapObjects.get(Long.valueOf(uiModel.id));
+            if (polyData != null) {
+                polyData.obj.setGeometry(new Polygon(new LinearRing(uiModel.points), new ArrayList<>()));
             }
-        };
-        polygonMapObject.addTapListener(mapObjectTapListener);
-        polygonsMapObjects.put(Long.valueOf(id), new PolygonData(polygonMapObject, mapObjectTapListener));
+        }
     }
 
     private void renderingMarkOfPlayer(Long id, String playerName, Point point) {
@@ -387,6 +413,19 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         int g = rnd.nextInt(256);
         int b = rnd.nextInt(256);
         return Color.argb(alpha, r, g, b);
+    }
+    private void showPolygonInfo(PolygonUiModel data) {
+        infoArea.setText(String.format(Locale.getDefault(), "Площадь: %.2f м²", data.area));
+        infoOwner.setText("Владелец: " + data.ownerLabel);
+
+        dimOverlay.setAlpha(0f);
+        dimOverlay.setVisibility(View.VISIBLE);
+        dimOverlay.animate().alpha(1f).setDuration(200).start();
+    }
+    private void hidePolygonInfo() {
+        dimOverlay.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+            dimOverlay.setVisibility(View.GONE);
+        }).start();
     }
 
 

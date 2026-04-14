@@ -25,5 +25,8 @@
     <string name="invalid_password">Password must be >5 characters</string>
     <string name="login_failed">"Login failed"</string>
     <string name="prompt_username">Username</string>
+    <string name="territory_info">Territory_Info</string>
+    <string name="close">Закрыть</string>
+    <string name="territory_title">Территория</string>
 
 </resources>

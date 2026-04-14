@@ -38,6 +38,8 @@ import com.kyas.wolkandhold.data.database.dao.RoutePointDao;
 import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
+import com.kyas.wolkandhold.ui.data.UserRepository;
+import com.kyas.wolkandhold.ui.data.model.LoggedInUser;
 import com.yandex.mapkit.geometry.Point;
 
 import java.lang.reflect.Type;
@@ -49,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import okhttp3.OkHttpClient;
 import retrofit2.Call;
@@ -74,6 +77,7 @@ public class DataRepository {
     private final FusedLocationProviderClient mFusedLocationClient;
     private final SharedPreferences set;
     private final AppDatabase db;
+    private final UserRepository userRepo = UserRepository.getInstance();
 
     private Retrofit retrofit;
     private final ApiService apiService;
@@ -159,6 +163,8 @@ public class DataRepository {
         points.postValue(current);
     }
     public void clearPoints() {
+        if (points.getValue() != null || !points.getValue().isEmpty())
+            socketManager.sendRequestCutTail(points.getValue());
         points.postValue(new ArrayList<>());
     }
 
@@ -166,7 +172,6 @@ public class DataRepository {
         return routes;
     }
 
-    // CHANGE: Перезагрузка списка маршрутов из БД
     private void reloadRoutes() {
         executor.execute(() -> routes.postValue(db.getRouteDao().getAllRoutes()));
     }
@@ -299,12 +304,16 @@ public class DataRepository {
                             });
                             PolygonDao dao = db.getPolygonDao();
                             list.forEach(dao::upsert);
-
-
                         });
+                        Log.d("API", "Get polygons: " + responses);
+                        if (responses.isEmpty()) {
+                            executor.execute(() -> {
+                                db.getPolygonDao().deleteAll();
+                            });
+                        }
                     }
                 } else {
-                    Log.d("API", "Response get polygons not successful");
+                    Log.d("API", "Response get polygons return null polygons");
                 }
             }
 
@@ -353,14 +362,20 @@ public class DataRepository {
     public void setPolygonListener() {
         socketManager.setPolygonListener(polys -> {
             executor.execute(() -> {
+                if (polys.stream().noneMatch(p -> p.pointsJson.isEmpty())) {
+                    for (Polygon poly : polys.stream().filter(p-> p.pointsJson.isEmpty()).collect(Collectors.toList())) {
+                        db.getPolygonDao().deletePolygonById(poly.id);
+                        polys.remove(poly);
+                    }
+                }
                 db.getPolygonDao().insertAll(polys);
                 boolean pointContains = false;
                 int index = -1;
                 List<Point> currentPoints = points.getValue();
-                if (!polys.isEmpty()) {
+                if (!polys.isEmpty() && currentPoints != null) {
                     for (int i = 0; i < polys.size(); i++) {
                         if (polygonSaved.getValue() == null || polys.get(i).id != polygonSaved.getValue().getId()) {
-                            for (int i1 = 0; i1 < currentPoints.size(); i1++) {
+                            for (int i1 = currentPoints.size()-1; i1 > 0; i1--) {
                                 if (pointIsInside(currentPoints.get(i1), polys.get(i).getPoints())) {
                                     pointContains = true;
                                     index = i1;
@@ -458,5 +473,22 @@ public class DataRepository {
 
     public MutableLiveData<Point> getLocation() {
         return location;
+    }
+
+    public void saveSession(Long id, String username, String jwt) {
+        userRepo.saveSession(new LoggedInUser(id, username, jwt));
+    }
+    public void saveSession(LoggedInUser user) {
+        userRepo.saveSession(user);
+    }
+
+    public LoggedInUser getSession() {
+        return userRepo.getSession();
+    }
+    public void clearSession() {
+        userRepo.clearSession();
+        SharedPreferences.Editor editor = set.edit();
+        editor.putString("token", "");
+        editor.apply();
     }
 }
